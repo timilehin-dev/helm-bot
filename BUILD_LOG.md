@@ -78,3 +78,10 @@ entry under "Build history" for details and the Phase 2 next steps.
   - `npm run typecheck --workspace=apps/web` → clean, no errors.
   - BYOK invariant re-confirmed: plain LLM key materialized only inside the Inngest `load-llm-key` step, forwarded to Modal as a JSON body field, never an env var or log. Channel name `quorum:run:<runId>` matches between Python `Streamer` and TS `runChannel()`.
 - **Next:** Phase 2 remainder — local `modal deploy` smoke test + document the exact deploy/run commands and expected `POST /run` output (blocked in this sandbox by no Modal CLI/credentials). Then Phase 3: Inngest cron for scheduled/always-on bots + multi-bot council UI wiring (acting seats + dissent surfaced in the SSE feed), and wiring Tavily into the Phase-1 `convene.ts` flow.
+
+## 2026-08-23 Build 3 — 3 (persistent bot model + registry + run entrypoint)
+- **Phase:** 3 (persistent bot model + registry + run entrypoint)
+- **Delivered:** Persistent Bot model + Redis registry + CRUD API + /api/bots/:id/run entrypoint. Added Bot interface w/ ownerId+schedule, BotDraft type, bot Redis helpers (botKey/botIndexKey/getBot/listBotIds/putBot/deleteBot), domain module lib/bots.ts (create/list/get/update/remove + parseBotDraft + resolveSeats), GET/POST /api/bots, GET/PATCH/DELETE /api/bots/[id], POST /api/bots/[id]/run queuing BotRunRequested via Inngest with resolved seats + BYOK key ref.
+- **Files:** packages/shared/src/index.ts, apps/web/src/lib/redis.ts, apps/web/src/lib/bots.ts, apps/web/src/app/api/bots/route.ts, apps/web/src/app/api/bots/[id]/route.ts, apps/web/src/app/api/bots/[id]/run/route.ts
+- **Verified:** npm run build -> ok (10 static pages, 11 routes incl 3 new /api/bots*); npm run typecheck -> clean; removed dead setBot helper after adversarial review
+- **Next:** Wire Inngest BotScheduleFired cron (always-on/scheduled bots) to load bot by id + queue run; surface multi-bot council + dissent in SSE/UI; add persistent run state (list/status) endpoint
