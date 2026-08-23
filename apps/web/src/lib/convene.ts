@@ -163,7 +163,7 @@ export async function convene(req: ConveneRequest): Promise<ConveneResponse> {
 
   const specialists = req.seatIds
     .map((id) => req.seats.find((s) => s.id === id))
-    .filter((s): s is NonNullable<typeof s> => Boolean(s) && !s.chair)
+    .filter((s): s is NonNullable<typeof s> => s != null && !s.chair)
     .slice(0, 3);
 
   const chair = req.seats.find((s) => s.id === req.chairId);
