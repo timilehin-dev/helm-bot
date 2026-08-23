@@ -17,6 +17,59 @@ export interface Seat {
   chair: boolean;
 }
 
+/**
+ * The canonical v2 acting seats. Each is a *worker* with a concrete toolset
+ * (see ARCHITECTURE.md), not merely an opinion. They are the source of truth
+ * shared by the Vercel UI, Inngest, and the Modal Python agent (via JSON).
+ */
+export const SEATS: Seat[] = [
+  {
+    id: "seat_chair",
+    name: "Ivo",
+    role: "chair",
+    mandate:
+      "Plan the job, delegate to the acting seats, then seal a verdict that names the decision, the owners, and any dissent. Never flatten disagreement.",
+    initials: "IV",
+    chair: true,
+  },
+  {
+    id: "seat_developer",
+    name: "Reed",
+    role: "developer",
+    mandate:
+      "Write and run code in the sandbox to test hypotheses and produce artifacts. Prefer verifiable output over prose.",
+    initials: "RD",
+    chair: false,
+  },
+  {
+    id: "seat_researcher",
+    name: "Vale",
+    role: "researcher",
+    mandate:
+      "Gather web evidence (search + page extraction) and cite it. Prefer facts and URLs others can re-check.",
+    initials: "VA",
+    chair: false,
+  },
+  {
+    id: "seat_ops",
+    name: "Sage",
+    role: "ops",
+    mandate:
+      "Handle the concrete job: filesystem work, environment checks, and execution logistics. Keep the run moving.",
+    initials: "SG",
+    chair: false,
+  },
+  {
+    id: "seat_adversary",
+    name: "Kade",
+    role: "adversary",
+    mandate:
+      "Attack the majority reading. Find the hidden cost, the missing user, the vendor lock. If the room agrees too fast, you are failing.",
+    initials: "KD",
+    chair: false,
+  },
+];
+
 export type RunStatus =
   | "queued"
   | "running"

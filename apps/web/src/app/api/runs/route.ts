@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest, QuorumEvents, type BotRunRequestedData } from "@/inngest/client";
 import { llmKeyRefFor } from "@/lib/redis";
+import type { Seat } from "@quorum/shared";
 
 export const runtime = "nodejs";
 
 type Body = {
   botId: string;
   task: string;
-  seatIds: string[];
-  chairId: string;
+  /** Optional: acting seats. Defaults to the canonical v2 SEATS. */
+  seats?: Seat[];
+  chairId?: string;
   userId: string;
   llm: { provider: string; baseUrl: string; model: string };
 };
@@ -40,8 +42,8 @@ export async function POST(req: NextRequest) {
     runId,
     botId: body.botId,
     task: body.task,
-    seatIds: body.seatIds,
-    chairId: body.chairId,
+    seats: body.seats ?? [],
+    chairId: body.chairId ?? "",
     llmKeyRef: llmKeyRefFor(body.userId),
     llm: body.llm,
   };

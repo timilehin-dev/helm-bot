@@ -84,3 +84,16 @@ export async function getEncryptedKey(
   const { getEncryptedKey } = await import("./redis");
   return getEncryptedKey(keyRef);
 }
+
+/**
+ * Fetch + decrypt the plaintext LLM key for a given key ref.
+ *
+ * The plain value is materialized ONLY inside an Inngest step, immediately
+ * forwarded to Modal, and never persisted or logged.
+ */
+export async function getDecryptedKey(keyRef: string): Promise<string | null> {
+  const { getEncryptedKey } = await import("./redis");
+  const enc = await getEncryptedKey(keyRef);
+  if (!enc) return null;
+  return decryptLlmKey(enc);
+}

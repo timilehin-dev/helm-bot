@@ -1,11 +1,14 @@
 import { inngest, QuorumEvents, type BotRunRequestedData } from "./client";
+import { SEATS } from "@quorum/shared";
 
 /**
  * The durable bot-run function.
  *
- * Phase 1 scaffold: it currently publishes lifecycle events to Redis pub/sub
- * (so the SSE feed already has something to show) and records a sealed verdict
- * placeholder. Phase 2 swaps the "run agent" step for a real Modal invocation.
+ * It fetches + decrypts the user's BYOK key inside a step (never logs it),
+ * then invokes the Modal Python agent over HTTPS. The Modal agent runs the full
+ * loop — plan, browse, shell, fs, search, synthesize — and streams per-step
+ * progress to Redis pub/sub for the SSE feed. This function just relays
+ * lifecycle markers so the UI still shows something even before Modal lands.
  */
 export const runBot = inngest.createFunction(
   { id: "run-bot", name: "Run a Quorum bot", retries: 3 },
@@ -19,15 +22,13 @@ export const runBot = inngest.createFunction(
       return "running";
     });
 
-    // Phase 2: fetch + decrypt the LLM key, invoke the Modal agent function,
-    // stream per-step progress back through Redis pub/sub.
-    const decryptedKeyPresent = await step.run("load-llm-key", async () => {
-      const { getEncryptedKey } = await import("@/lib/llm-key-store");
-      const enc = await getEncryptedKey(data.llmKeyRef);
-      return Boolean(enc);
+    // Fetch + decrypt the LLM key. The plain value stays inside this step.
+    const apiKey = await step.run("load-llm-key", async () => {
+      const { getDecryptedKey } = await import("@/lib/llm-key-store");
+      return getDecryptedKey(data.llmKeyRef);
     });
 
-    if (!decryptedKeyPresent) {
+    if (!apiKey) {
       await publish(data.runId, {
         type: "run:failed",
         runId: data.runId,
@@ -37,41 +38,43 @@ export const runBot = inngest.createFunction(
       return { status: "failed", reason: "missing-llm-key" };
     }
 
-    await step.run("run-agent", async () => {
-      await publish(data.runId, {
-        type: "step:started",
+    const result = await step.run("run-agent", async () => {
+      const { invokeModalAgent } = await import("@/lib/modal");
+
+      const res = await invokeModalAgent({
         runId: data.runId,
-        step: {
-          id: "plan",
-          seatId: data.chairId,
-          kind: "plan",
-          title: "Planning task",
-          status: "running",
-          at: Date.now(),
+        task: data.task,
+        seats: data.seats?.length ? data.seats : SEATS,
+        chairId: data.chairId || SEATS.find((s) => s.chair)?.id || "",
+        apiKey,
+        llm: data.llm,
+        infra: {
+          tavilyApiKey: process.env.TAVILY_API_KEY,
+          redisUrl: process.env.REDIS_URL || process.env.UPSTASH_REDIS_REST_URL,
         },
       });
-      await publish(data.runId, {
-        type: "step:done",
-        runId: data.runId,
-        step: {
-          id: "plan",
-          seatId: data.chairId,
-          kind: "plan",
-          title: "Planning task",
-          status: "done",
-          detail: "Modal agent loop not yet wired (Phase 2).",
-          at: Date.now(),
-        },
-      });
-      return "planned";
+
+      if (!res.ok) {
+        const error = res.unconfigured
+          ? "Modal agent not deployed (MODAL_AGENT_URL unset). Deploy modal/agent.py."
+          : res.error || "Modal agent failed";
+        await publish(data.runId, { type: "run:failed", runId: data.runId, error, at: Date.now() });
+        return { ok: false as const, error };
+      }
+
+      return { ok: true as const, verdict: res.verdict, dissent: res.dissent };
     });
+
+    if (!result.ok) {
+      return { status: "failed", reason: result.error };
+    }
 
     await step.run("seal", async () => {
       await publish(data.runId, {
         type: "run:sealed",
         runId: data.runId,
-        verdict: "Run queued. Modal agent loop arrives in Phase 2.",
-        dissent: "None recorded.",
+        verdict: result.verdict ?? "Sealed.",
+        dissent: result.dissent ?? "None recorded.",
         at: Date.now(),
       });
       return "sealed";

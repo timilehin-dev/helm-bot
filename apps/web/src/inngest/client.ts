@@ -1,4 +1,5 @@
 import { Inngest, EventSchemas } from "inngest";
+import type { Seat } from "@quorum/shared";
 
 /**
  * Quorum v2 Inngest client.
@@ -29,7 +30,9 @@ export interface BotRunRequestedData {
   runId: string;
   botId: string;
   task: string;
-  seatIds: string[];
+  /** The acting seats for this run (chair + workers). */
+  seats: Seat[];
+  /** Id of the seat acting as chair. */
   chairId: string;
   /** Redis key for the encrypted LLM key, e.g. `quorum:llmkey:<userId>`. */
   llmKeyRef: string;

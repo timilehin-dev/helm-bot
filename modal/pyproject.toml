@@ -1,0 +1,21 @@
+[project]
+name = "quorum-modal-agent"
+version = "0.2.0"
+description = "Quorum v2 Modal agent — the bot's own computer (Phase 2)."
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+# Everything the Modal image needs (the entrypoint installs these directly too).
+runtime = ["playwright>=1.44", "redis>=5.0", "requests>=2.31"]
+test = ["pytest>=8.0"]
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["quorum"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
