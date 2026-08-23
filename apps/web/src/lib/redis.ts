@@ -87,6 +87,48 @@ export async function getProviderMeta(
   return raw ? (JSON.parse(raw) as LlmConfig) : null;
 }
 
+/** Key for a single bot record (namespaced by owner). */
+export function botKey(ownerId: string, botId: string) {
+  return `quorum:bot:${ownerId}:${botId}`;
+}
+
+/** Sorted-set key listing a user's bot ids (score = createdAt). */
+export function botIndexKey(ownerId: string) {
+  return `quorum:bots:${ownerId}`;
+}
+
+/** Load a single bot record by id. */
+export async function getBot<T>(ownerId: string, botId: string): Promise<T | null> {
+  const c = client();
+  if (!c) return null;
+  const raw = await c.get(botKey(ownerId, botId));
+  return raw ? (JSON.parse(raw) as T) : null;
+}
+
+/** List a user's bot ids, most-recently-created first. */
+export async function listBotIds(ownerId: string): Promise<string[]> {
+  const c = client();
+  if (!c) return [];
+  return c.zrange(botIndexKey(ownerId), 0, -1, "REV");
+}
+
+/** Register/update a bot record and index it for the owner. */
+export async function putBot<T>(ownerId: string, bot: T & { id: string; createdAt: number }): Promise<void> {
+  const c = client();
+  if (!c) return;
+  const key = botKey(ownerId, bot.id);
+  await c.set(key, JSON.stringify(bot));
+  await c.zadd(botIndexKey(ownerId), bot.createdAt, bot.id);
+}
+
+/** Remove a bot record and drop it from the owner's index. */
+export async function deleteBot(ownerId: string, botId: string): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.del(botKey(ownerId, botId));
+  await c.zrem(botIndexKey(ownerId), botId);
+}
+
 /** Publish a run event to pub/sub (consumed by the SSE route). */
 export async function publishRunEvent(runId: string, event: unknown): Promise<void> {
   const c = client();

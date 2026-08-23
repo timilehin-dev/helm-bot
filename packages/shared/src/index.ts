@@ -125,11 +125,18 @@ export interface BotRun {
 export interface Bot {
   id: string;
   name: string;
+  /** Acting seats for this bot (chair + workers). Empty = canonical default. */
   seatIds: string[];
   chairId: string;
+  /** Cron expression for always-on/scheduled runs (Phase 3). */
   schedule?: string;
+  /** The owning user. Bots are namespaced per user so keys resolve correctly. */
+  ownerId: string;
   createdAt: number;
 }
+
+/** A bot definition as supplied by the operator (no id/createdAt). */
+export type BotDraft = Omit<Bot, "id" | "createdAt">;
 
 /** BYOK provider config. The key is encrypted at rest in Redis; the plain
  *  value only ever lives in Inngest step context, never in the DB/UI. */
