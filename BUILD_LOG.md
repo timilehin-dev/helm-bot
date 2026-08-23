@@ -62,3 +62,19 @@ entry under "Build history" for details and the Phase 2 next steps.
   - BYOK invariant confirmed by code review: no LLM key is hardcoded; `llmKeyRef` (Redis key) is the only thing carried on the Inngest event, decrypted inside step context.
 - **Next:** Phase 2 — implement the Modal Python agent loop (Playwright browse + shell + fs + Tavily + LLM) with a persisted browser profile on a Modal volume; wire the Inngest `run-bot` "run agent" step to invoke it with the decrypted BYOK key. Also consider wiring the Tavily search tool into the council `convene.ts` flow so a Phase-1 bot already gathers real evidence before Modal lands.
 
+## 2026-08-23 Build 2 — Phase 2 Modal agent loop + Inngest→Modal BYOK invocation
+- **Phase:** 2 (Modal computer — full Python agent loop + persisted browser profile)
+- **Delivered:**
+  - Full Python agent loop under `modal/quorum/`: `agent.py` (plan → acting seats run tools → chair seals verdict + records dissent), `llm.py` (BYOK OpenAI-compatible + Anthropic chat via stdlib `urllib`, zero third-party HTTP deps), `seats.py` (canonical SEATS + `resolve_seats`), `stream.py` (Redis pub/sub `Streamer` with offline no-op + `RecordingPublisher`), `tools.py` (`ShellTool`, `FsTool`, `TavilyTool`, `Browser` protocol), `types.py` (`RunRequest`/`RunResult`/`Position`/`Seat`/`ToolOutcome`).
+  - `modal/agent.py`: deployable Modal `web_endpoint` (`POST /run`) with a `PlaywrightBrowser` adapter using `launch_persistent_context` on the `quorum-browser-profiles` volume (logins persist), `quorum-agent` Modal Secret for infra tokens, 15 min timeout, 4 concurrent inputs.
+  - `apps/web/src/lib/modal.ts`: `invokeModalAgent` + typed `ModalRunResponse` discriminated union; graceful "unconfigured" path when `MODAL_AGENT_URL` unset.
+  - `apps/web/src/inngest/functions.ts`: decrypted BYOK key in-step, invoked Modal over HTTPS, relays `run:failed`/`run:sealed` lifecycle markers; `packages/shared` canonical `SEATS` (5 acting seats incl. adversary) now the single source of truth shared by UI/Inngest/Modal; `POST /api/runs` accepts `seats`/`chairId` with sane defaults.
+  - `.env.example` (with `MODAL_AGENT_URL`) un-ignored; `.gitignore` covers Python artifacts (`__pycache__`, `.pytest_cache`, `*.egg-info`).
+- **Files:** `modal/quorum/*`, `modal/agent.py`, `modal/pyproject.toml`, `modal/tests/test_agent.py`, `apps/web/src/lib/modal.ts`, `apps/web/src/inngest/functions.ts`, `apps/web/src/inngest/client.ts`, `apps/web/src/lib/llm-key-store.ts`, `apps/web/src/app/api/runs/route.ts`, `packages/shared/src/index.ts`, `.env.example`, `.gitignore`.
+- **Verified:**
+  - `modal: python3 -m pytest -q` → **11 passed** (agent loop end-to-end incl. dissent, LLM exception handling, shell/fs/tavily tools, offline streaming safety).
+  - `modal: python3 -m py_compile agent.py quorum/*.py` → clean.
+  - `npm run build` → ✓ Compiled successfully (Next.js 15.5.23), 8 routes registered.
+  - `npm run typecheck --workspace=apps/web` → clean, no errors.
+  - BYOK invariant re-confirmed: plain LLM key materialized only inside the Inngest `load-llm-key` step, forwarded to Modal as a JSON body field, never an env var or log. Channel name `quorum:run:<runId>` matches between Python `Streamer` and TS `runChannel()`.
+- **Next:** Phase 2 remainder — local `modal deploy` smoke test + document the exact deploy/run commands and expected `POST /run` output (blocked in this sandbox by no Modal CLI/credentials). Then Phase 3: Inngest cron for scheduled/always-on bots + multi-bot council UI wiring (acting seats + dissent surfaced in the SSE feed), and wiring Tavily into the Phase-1 `convene.ts` flow.
