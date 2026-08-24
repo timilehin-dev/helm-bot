@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { inngest, QuorumEvents, type BotRunRequestedData } from "@/inngest/client";
-import { getBot, resolveSeats } from "@/lib/bots";
-import { createRun } from "@/lib/runs";
-import { getProviderMeta, llmKeyRefFor } from "@/lib/redis";
-import type { BotRun } from "@quorum/shared";
+import { getBot } from "@/lib/bots";
+import { queueBotRun } from "@/lib/queue";
 
 export const runtime = "nodejs";
 
@@ -18,10 +15,10 @@ type Body = {
  * Run a bot by id → `inngest.send()`.
  *
  * This is the canonical "Core flow" entrypoint (ARCHITECTURE.md §"Core flow").
- * It loads the persisted bot, resolves its acting seats, looks up the owner's
- * non-secret provider metadata, and queues a durable run. The encrypted LLM key
- * is referenced only by its Redis key — decryption happens inside the Inngest
- * function and is forwarded to Modal as a body field.
+ * It loads the persisted bot, then delegates to `queueBotRun`, which resolves
+ * acting seats, looks up the owner's non-secret provider metadata, and queues a
+ * durable run. The encrypted LLM key is referenced only by its Redis key —
+ * decryption happens inside the Inngest function and is forwarded to Modal.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -47,42 +44,8 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Bot not found" }, { status: 404 });
   }
 
-  const providerMeta = await getProviderMeta(userId);
-  const { seats, chairId } = resolveSeats(bot.seatIds, bot.chairId);
-
-  const runId = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-  const data: BotRunRequestedData = {
-    runId,
-    botId: bot.id,
-    task,
-    seats,
-    chairId,
-    llmKeyRef: llmKeyRefFor(userId),
-    ownerId: userId,
-    llm: {
-      provider: providerMeta?.provider ?? "openai",
-      baseUrl: providerMeta?.baseUrl ?? "https://api.openai.com/v1",
-      model: providerMeta?.model ?? "gpt-4o",
-    },
-  };
-
   try {
-    const run: BotRun = {
-      id: runId,
-      botId: bot.id,
-      task,
-      seatIds: seats.map((s) => s.id),
-      chairId,
-      status: "queued",
-      steps: [],
-      positions: [],
-      verdict: "",
-      dissent: "",
-      ownerId: userId,
-      createdAt: Date.now(),
-    };
-    await createRun(run);
-    await inngest.send({ name: QuorumEvents.BotRunRequested, data });
+    const runId = await queueBotRun(bot, task);
     return NextResponse.json({ ok: true, runId, botId: bot.id });
   } catch (err) {
     return NextResponse.json(

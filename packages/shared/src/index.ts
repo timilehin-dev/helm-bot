@@ -130,8 +130,13 @@ export interface Bot {
   /** Acting seats for this bot (chair + workers). Empty = canonical default. */
   seatIds: string[];
   chairId: string;
-  /** Cron expression for always-on/scheduled runs (Phase 3). */
+  /** Cron expression for always-on/scheduled runs (Phase 3). Presence = enabled. */
   schedule?: string;
+  /**
+   * Standing task the bot performs each time its schedule fires. Required for
+   * scheduled/always-on bots; on-demand runs supply their task inline instead.
+   */
+  task?: string;
   /** The owning user. Bots are namespaced per user so keys resolve correctly. */
   ownerId: string;
   createdAt: number;

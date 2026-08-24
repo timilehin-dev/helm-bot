@@ -97,6 +97,59 @@ export function botIndexKey(ownerId: string) {
   return `quorum:bots:${ownerId}`;
 }
 
+/** Reverse index: bot id → owning user id (lets the Phase-3 cron find a bot's
+ *  owner starting from a global bot id). */
+export function botOwnerKey(botId: string) {
+  return `quorum:botowner:${botId}`;
+}
+
+/** Global set of bot ids that currently have a schedule (Phase 3 cron input). */
+export function scheduledBotsKey() {
+  return `quorum:schedule:all`;
+}
+
+/** Record a bot's owner in the reverse index. */
+export async function setBotOwner(botId: string, ownerId: string): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.set(botOwnerKey(botId), ownerId);
+}
+
+/** Look up a bot's owner by id (null if unknown). */
+export async function getBotOwner(botId: string): Promise<string | null> {
+  const c = client();
+  if (!c) return null;
+  return c.get(botOwnerKey(botId));
+}
+
+/** Drop a bot's reverse-index entry (used on delete). */
+export async function unsetBotOwner(botId: string): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.del(botOwnerKey(botId));
+}
+
+/** Add a bot id to the global scheduled set. */
+export async function indexScheduled(botId: string): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.sadd(scheduledBotsKey(), botId);
+}
+
+/** Remove a bot id from the global scheduled set. */
+export async function unindexScheduled(botId: string): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.srem(scheduledBotsKey(), botId);
+}
+
+/** List all bot ids globally that currently carry a schedule. */
+export async function listScheduledBotIds(): Promise<string[]> {
+  const c = client();
+  if (!c) return [];
+  return c.smembers(scheduledBotsKey());
+}
+
 /** Load a single bot record by id. */
 export async function getBot<T>(ownerId: string, botId: string): Promise<T | null> {
   const c = client();
@@ -113,12 +166,21 @@ export async function listBotIds(ownerId: string): Promise<string[]> {
 }
 
 /** Register/update a bot record and index it for the owner. */
-export async function putBot<T>(ownerId: string, bot: T & { id: string; createdAt: number }): Promise<void> {
+export async function putBot<T>(
+  ownerId: string,
+  bot: T & { id: string; createdAt: number; schedule?: string },
+): Promise<void> {
   const c = client();
   if (!c) return;
   const key = botKey(ownerId, bot.id);
   await c.set(key, JSON.stringify(bot));
   await c.zadd(botIndexKey(ownerId), bot.createdAt, bot.id);
+  await setBotOwner(bot.id, ownerId);
+  if (bot.schedule) {
+    await indexScheduled(bot.id);
+  } else {
+    await unindexScheduled(bot.id);
+  }
 }
 
 /** Remove a bot record and drop it from the owner's index. */
@@ -127,6 +189,8 @@ export async function deleteBot(ownerId: string, botId: string): Promise<void> {
   if (!c) return;
   await c.del(botKey(ownerId, botId));
   await c.zrem(botIndexKey(ownerId), botId);
+  await unsetBotOwner(botId);
+  await unindexScheduled(botId);
 }
 
 /** Publish a run event to pub/sub (consumed by the SSE route). */

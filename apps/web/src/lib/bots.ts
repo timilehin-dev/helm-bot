@@ -4,7 +4,9 @@ import { SEATS } from "@quorum/shared";
 import {
   deleteBot as redisDeleteBot,
   getBot as redisGetBot,
+  getBotOwner,
   listBotIds,
+  listScheduledBotIds,
   putBot,
 } from "./redis";
 
@@ -43,6 +45,8 @@ export function parseBotDraft(
   const chairId = typeof d.chairId === "string" ? d.chairId.trim() : "";
   const schedule =
     typeof d.schedule === "string" && d.schedule.trim() ? d.schedule.trim() : undefined;
+  const task =
+    typeof d.task === "string" && d.task.trim() ? d.task.trim() : undefined;
 
   const draft: BotDraft = {
     name,
@@ -51,6 +55,7 @@ export function parseBotDraft(
     ownerId,
   };
   if (schedule) draft.schedule = schedule;
+  if (task) draft.task = task;
 
   return { ok: true, draft };
 }
@@ -65,6 +70,7 @@ export async function createBot(ownerId: string, draft: BotDraft): Promise<Bot> 
     createdAt: Date.now(),
   };
   if (draft.schedule) bot.schedule = draft.schedule;
+  if (draft.task) bot.task = draft.task;
   await putBot(ownerId, bot);
   return bot;
 }
@@ -77,6 +83,27 @@ export async function listBots(ownerId: string): Promise<Bot[]> {
 
 export async function getBot(ownerId: string, botId: string): Promise<Bot | null> {
   return redisGetBot<Bot>(ownerId, botId);
+}
+
+/**
+ * Load a bot by its global id alone, resolving the owner via the reverse index
+ * (`putBot` maintains `quorum:botowner:<id>`). Used by the Phase-3 cron, which
+ * iterates the global scheduled-bot set and has no owner id in hand.
+ */
+export async function getBotById(botId: string): Promise<Bot | null> {
+  const ownerId = await getBotOwner(botId);
+  if (!ownerId) return null;
+  return getBot(ownerId, botId);
+}
+
+/**
+ * Every bot globally that currently carries a schedule. Cheaper than scanning
+ * all owners; `putBot`/`deleteBot` maintain the membership.
+ */
+export async function listScheduledBots(): Promise<Bot[]> {
+  const ids = await listScheduledBotIds();
+  const bots = await Promise.all(ids.map((id) => getBotById(id)));
+  return bots.filter((b): b is Bot => b !== null);
 }
 
 export async function updateBot(

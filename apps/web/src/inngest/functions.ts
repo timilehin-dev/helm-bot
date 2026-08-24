@@ -100,4 +100,76 @@ async function publish(runId: string, event: unknown) {
   await publishRunEvent(runId, event);
 }
 
-export const functions = [runBot];
+/**
+ * Phase-3 cron ticker — fires every minute and emits a `BotScheduleFired`
+ * event for each bot whose cron expression matches the current minute.
+ *
+ * Scheduled/always-on bots are members of a single global Redis set
+ * (`quorum:schedule:all`, maintained by `putBot`/`deleteBot`); this function
+ * fans out to a durable dispatcher rather than queueing inline, so a single
+ * tick never blocks on one bad bot.
+ */
+export const tickSchedules = inngest.createFunction(
+  { id: "tick-schedules", name: "Tick scheduled bots", retries: 3 },
+  { cron: "*/1 * * * *" },
+  async ({ step, logger }) => {
+    const due = await step.run("find-due", async () => {
+      const { listScheduledBots } = await import("@/lib/bots");
+      const { cronMatches } = await import("@/lib/cron");
+      const now = new Date();
+      const bots = await listScheduledBots();
+      return bots
+        .filter((b) => b.schedule && cronMatches(b.schedule, now))
+        .map((b) => ({ botId: b.id, at: now.getTime() }));
+    });
+
+    if (due.length) {
+      await step.sendEvent(
+        "fanout-schedule-fired",
+        due.map((d) => ({ name: QuorumEvents.BotScheduleFired, data: d })),
+      );
+    }
+
+    logger.info("Schedule tick", { due: due.length });
+    return { due: due.length, bots: due.map((d) => d.botId) };
+  },
+);
+
+/**
+ * Phase-3 schedule dispatcher — consumes `BotScheduleFired`, loads the bot by
+ * its global id (via the reverse owner index), and queues a run of its standing
+ * task through the same durable `BotRunRequested` pipeline as on-demand runs.
+ */
+export const dispatchSchedule = inngest.createFunction(
+  { id: "dispatch-schedule", name: "Dispatch a fired bot schedule", retries: 3 },
+  { event: QuorumEvents.BotScheduleFired },
+  async ({ event, step, logger }) => {
+    const { botId } = event.data;
+
+    const bot = await step.run("load-bot", async () => {
+      const { getBotById } = await import("@/lib/bots");
+      return getBotById(botId);
+    });
+
+    if (!bot) {
+      logger.warn("Fired bot not found", { botId });
+      return { dispatched: false, reason: "bot-not-found" };
+    }
+
+    const task = bot.task;
+    if (!bot.schedule || !task) {
+      logger.warn("Bot no longer scheduled or missing task", { botId });
+      return { dispatched: false, reason: "not-scheduled" };
+    }
+
+    const runId = await step.run("queue-run", async () => {
+      const { queueBotRun } = await import("@/lib/queue");
+      return queueBotRun(bot, task);
+    });
+
+    logger.info("Dispatched scheduled bot", { botId, runId });
+    return { dispatched: true, runId };
+  },
+);
+
+export const functions = [runBot, tickSchedules, dispatchSchedule];
