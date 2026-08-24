@@ -85,3 +85,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** packages/shared/src/index.ts, apps/web/src/lib/redis.ts, apps/web/src/lib/bots.ts, apps/web/src/app/api/bots/route.ts, apps/web/src/app/api/bots/[id]/route.ts, apps/web/src/app/api/bots/[id]/run/route.ts
 - **Verified:** npm run build -> ok (10 static pages, 11 routes incl 3 new /api/bots*); npm run typecheck -> clean; removed dead setBot helper after adversarial review
 - **Next:** Wire Inngest BotScheduleFired cron (always-on/scheduled bots) to load bot by id + queue run; surface multi-bot council + dissent in SSE/UI; add persistent run state (list/status) endpoint
+
+## 2026-08-24 Build 4 — Phase 3
+- **Phase:** Phase 3
+- **Delivered:** Persistent run-state registry (Redis sorted-set index per owner) + list/status API. Runs now transition queued→running→sealed/failed durably; GET /api/runs?userId= and GET /api/runs/[id]?userId= expose list + single status.
+- **Files:** apps/web/src/lib/runs.ts, apps/web/src/lib/redis.ts, apps/web/src/app/api/runs/route.ts, apps/web/src/app/api/runs/[id]/route.ts, apps/web/src/inngest/functions.ts, apps/web/src/inngest/client.ts, apps/web/src/app/api/bots/[id]/run/route.ts, packages/shared/src/index.ts
+- **Verified:** builder gate verify green (next build compiled 12 routes, tsc --noEmit clean); modal pytest 11/11 passed
+- **Next:** Wire run list/status into the UI (history page + live status polling), then Phase-3 Inngest cron for scheduled/always-on bots.
