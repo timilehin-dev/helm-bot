@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest, QuorumEvents, type BotRunRequestedData } from "@/inngest/client";
 import { llmKeyRefFor } from "@/lib/redis";
-import type { Seat } from "@quorum/shared";
+import { createRun, listRuns } from "@/lib/runs";
+import type { BotRun, Seat } from "@quorum/shared";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,21 @@ type Body = {
   userId: string;
   llm: { provider: string; baseUrl: string; model: string };
 };
+
+/**
+ * Run registry.
+ *
+ * GET  /api/runs?userId=...   → the user's runs, most-recent first
+ * POST /api/runs               → assign a task to a bot (queues a run)
+ */
+export async function GET(req: NextRequest) {
+  const userId = req.nextUrl.searchParams.get("userId")?.trim();
+  if (!userId) {
+    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  }
+  const runs = await listRuns(userId);
+  return NextResponse.json({ ok: true, runs });
+}
 
 /**
  * Assign a task to a bot → `inngest.send()`.
@@ -45,10 +61,26 @@ export async function POST(req: NextRequest) {
     seats: body.seats ?? [],
     chairId: body.chairId ?? "",
     llmKeyRef: llmKeyRefFor(body.userId),
+    ownerId: body.userId,
     llm: body.llm,
   };
 
   try {
+    const run: BotRun = {
+      id: runId,
+      botId: body.botId,
+      task: body.task,
+      seatIds: data.seats.map((s) => s.id),
+      chairId: data.chairId,
+      status: "queued",
+      steps: [],
+      positions: [],
+      verdict: "",
+      dissent: "",
+      ownerId: body.userId,
+      createdAt: Date.now(),
+    };
+    await createRun(run);
     await inngest.send({ name: QuorumEvents.BotRunRequested, data });
     return NextResponse.json({ ok: true, runId });
   } catch (err) {

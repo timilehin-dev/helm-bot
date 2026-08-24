@@ -118,6 +118,8 @@ export interface BotRun {
   verdict: string;
   dissent: string;
   error?: string;
+  /** The owning user. Runs are namespaced per user so the registry resolves correctly. */
+  ownerId: string;
   createdAt: number;
   sealedAt?: number;
 }

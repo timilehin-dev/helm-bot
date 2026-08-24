@@ -36,6 +36,8 @@ export interface BotRunRequestedData {
   chairId: string;
   /** Redis key for the encrypted LLM key, e.g. `quorum:llmkey:<userId>`. */
   llmKeyRef: string;
+  /** Owning user id — used to namespace the persistent run registry. */
+  ownerId: string;
   llm: { provider: string; baseUrl: string; model: string };
 }
 

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { inngest, QuorumEvents, type BotRunRequestedData } from "@/inngest/client";
 import { getBot, resolveSeats } from "@/lib/bots";
+import { createRun } from "@/lib/runs";
 import { getProviderMeta, llmKeyRefFor } from "@/lib/redis";
+import type { BotRun } from "@quorum/shared";
 
 export const runtime = "nodejs";
 
@@ -56,6 +58,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     seats,
     chairId,
     llmKeyRef: llmKeyRefFor(userId),
+    ownerId: userId,
     llm: {
       provider: providerMeta?.provider ?? "openai",
       baseUrl: providerMeta?.baseUrl ?? "https://api.openai.com/v1",
@@ -64,6 +67,21 @@ export async function POST(req: NextRequest, { params }: Params) {
   };
 
   try {
+    const run: BotRun = {
+      id: runId,
+      botId: bot.id,
+      task,
+      seatIds: seats.map((s) => s.id),
+      chairId,
+      status: "queued",
+      steps: [],
+      positions: [],
+      verdict: "",
+      dissent: "",
+      ownerId: userId,
+      createdAt: Date.now(),
+    };
+    await createRun(run);
     await inngest.send({ name: QuorumEvents.BotRunRequested, data });
     return NextResponse.json({ ok: true, runId, botId: bot.id });
   } catch (err) {

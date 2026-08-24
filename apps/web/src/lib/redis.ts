@@ -151,6 +151,36 @@ export async function getRunState<T>(runId: string): Promise<T | null> {
   return raw ? (JSON.parse(raw) as T) : null;
 }
 
+/** Sorted-set key listing a user's run ids (score = createdAt). */
+export function runIndexKey(ownerId: string) {
+  return `quorum:runs:${ownerId}`;
+}
+
+/** Register a run id in the owner's index (most-recent first on list). */
+export async function indexRun(ownerId: string, runId: string, createdAt: number): Promise<void> {
+  const c = client();
+  if (!c) return;
+  await c.zadd(runIndexKey(ownerId), createdAt, runId);
+}
+
+/** List a user's run ids, most-recent first. */
+export async function listRunIds(ownerId: string): Promise<string[]> {
+  const c = client();
+  if (!c) return [];
+  return c.zrange(runIndexKey(ownerId), 0, -1, "REV");
+}
+
+/** Persist a run's state and index it under its owner. */
+export async function putRunState<T>(
+  ownerId: string,
+  runId: string,
+  createdAt: number,
+  state: T,
+): Promise<void> {
+  await setRunState(runId, state);
+  await indexRun(ownerId, runId, createdAt);
+}
+
 /**
  * Subscribe to a run's live channel. Returns an unsubscribe function.
  *

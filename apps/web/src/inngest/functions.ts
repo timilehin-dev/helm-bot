@@ -19,6 +19,8 @@ export const runBot = inngest.createFunction(
 
     await step.run("mark-running", async () => {
       await publish(data.runId, { type: "run:started", runId: data.runId, at: Date.now() });
+      const { markRunning } = await import("@/lib/runs");
+      await markRunning(data.ownerId, data.runId);
       return "running";
     });
 
@@ -35,6 +37,8 @@ export const runBot = inngest.createFunction(
         error: "No LLM key stored for this user. Add one in Settings.",
         at: Date.now(),
       });
+      const { failRun } = await import("@/lib/runs");
+      await failRun(data.ownerId, data.runId, "No LLM key stored for this user. Add one in Settings.");
       return { status: "failed", reason: "missing-llm-key" };
     }
 
@@ -59,6 +63,8 @@ export const runBot = inngest.createFunction(
           ? "Modal agent not deployed (MODAL_AGENT_URL unset). Deploy modal/agent.py."
           : res.error || "Modal agent failed";
         await publish(data.runId, { type: "run:failed", runId: data.runId, error, at: Date.now() });
+        const { failRun } = await import("@/lib/runs");
+        await failRun(data.ownerId, data.runId, error);
         return { ok: false as const, error };
       }
 
@@ -70,13 +76,17 @@ export const runBot = inngest.createFunction(
     }
 
     await step.run("seal", async () => {
+      const verdict = result.verdict ?? "Sealed.";
+      const dissent = result.dissent ?? "None recorded.";
       await publish(data.runId, {
         type: "run:sealed",
         runId: data.runId,
-        verdict: result.verdict ?? "Sealed.",
-        dissent: result.dissent ?? "None recorded.",
+        verdict,
+        dissent,
         at: Date.now(),
       });
+      const { sealRun } = await import("@/lib/runs");
+      await sealRun(data.ownerId, data.runId, verdict, dissent);
       return "sealed";
     });
 
