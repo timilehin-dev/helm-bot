@@ -6,10 +6,12 @@ import { Chamber } from "./chamber";
 import { Dock } from "./dock";
 import { Ledger } from "./ledger";
 import { Onboarding } from "./onboarding";
+import { Runs } from "./runs";
 import { Settings } from "./settings";
 
 const nav: Array<{ id: View; label: string }> = [
   { id: "chamber", label: "Chamber" },
+  { id: "runs", label: "Runs" },
   { id: "ledger", label: "Ledger" },
   { id: "dock", label: "Dock" },
   { id: "settings", label: "Settings" },
@@ -119,12 +121,13 @@ function ShellInner() {
 
         <main className="min-h-0 flex-1 overflow-y-auto">
           {view === "chamber" && <Chamber />}
+          {view === "runs" && <Runs />}
           {view === "ledger" && <Ledger />}
           {view === "dock" && <Dock />}
           {view === "settings" && <Settings />}
         </main>
 
-        <nav className="grid grid-cols-4 border-t border-border lg:hidden">
+        <nav className="grid grid-cols-5 border-t border-border lg:hidden">
           {nav.map((item) => (
             <button
               key={item.id}

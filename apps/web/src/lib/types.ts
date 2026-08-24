@@ -1,4 +1,4 @@
-export type View = "chamber" | "ledger" | "dock" | "settings";
+export type View = "chamber" | "ledger" | "dock" | "runs" | "settings";
 
 export type SeatStatus = "idle" | "deliberating" | "done";
 
