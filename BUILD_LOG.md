@@ -99,3 +99,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/components/runs.tsx, apps/web/src/components/app-shell.tsx, apps/web/src/lib/operator.ts, apps/web/src/lib/types.ts
 - **Verified:** builder gate verify GREEN: next build compiled (12 routes, 10 static pages) + tsc --noEmit clean; only pre-existing layout.tsx custom-font warning.
 - **Next:** Phase 3 Inngest cron: BotScheduleFired -> load bot by id + queue run for scheduled/always-on bots.
+
+## 2026-08-24 Build 6 — Phase 3: Inngest cron scheduler for scheduled/always-on bots
+- **Phase:** Phase 3: Inngest cron scheduler for scheduled/always-on bots
+- **Delivered:** tickSchedules Inngest cron (fires every minute) + dispatchSchedule durable fan-out; Bot schedule/task fields plumbed through shared types, bot parser, and redis; reverse owner index + global scheduled-bot set; shared queueBotRun pipeline reused by both on-demand and cron runs; minimal 5-field cron matcher.
+- **Files:** apps/web/src/inngest/functions.ts, apps/web/src/lib/cron.ts, apps/web/src/lib/queue.ts, apps/web/src/lib/bots.ts, apps/web/src/lib/redis.ts, apps/web/src/app/api/bots/[id]/run/route.ts, packages/shared/src/index.ts
+- **Verified:** npm run build (Next.js 15.5.23 prod build green), npm run typecheck (tsc --noEmit green), npm run lint (only pre-existing font warning), cron matcher unit assertions all passed
+- **Next:** Phase 3 remaining: wire schedule/task into the bot create/edit UI form + surface scheduled runs on runs page; then multi-bot council acting-seat loop on Modal agent
