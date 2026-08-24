@@ -92,3 +92,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/lib/runs.ts, apps/web/src/lib/redis.ts, apps/web/src/app/api/runs/route.ts, apps/web/src/app/api/runs/[id]/route.ts, apps/web/src/inngest/functions.ts, apps/web/src/inngest/client.ts, apps/web/src/app/api/bots/[id]/run/route.ts, packages/shared/src/index.ts
 - **Verified:** builder gate verify green (next build compiled 12 routes, tsc --noEmit clean); modal pytest 11/11 passed
 - **Next:** Wire run list/status into the UI (history page + live status polling), then Phase-3 Inngest cron for scheduled/always-on bots.
+
+## 2026-08-24 Build 5 — Phase 3
+- **Phase:** Phase 3
+- **Delivered:** Runs history page + live status polling wired into the UI. Added a 'Runs' nav view rendering the operator's bot-run registry (most-recent first) with status badges (queued/running/awaiting_input/sealed/failed), expandable detail (verdict + dissent, error, steps, positions), and 4s polling against GET /api/runs. Introduced lib/operator.ts for the fixed local operator id pending Phase 4 auth.
+- **Files:** apps/web/src/components/runs.tsx, apps/web/src/components/app-shell.tsx, apps/web/src/lib/operator.ts, apps/web/src/lib/types.ts
+- **Verified:** builder gate verify GREEN: next build compiled (12 routes, 10 static pages) + tsc --noEmit clean; only pre-existing layout.tsx custom-font warning.
+- **Next:** Phase 3 Inngest cron: BotScheduleFired -> load bot by id + queue run for scheduled/always-on bots.
