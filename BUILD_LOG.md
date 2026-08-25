@@ -113,3 +113,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/components/bots.tsx (new), apps/web/src/lib/seats.ts (new), apps/web/src/components/app-shell.tsx, apps/web/src/lib/types.ts, apps/web/src/lib/bots.ts
 - **Verified:** builder_gate verify GREEN: next build compiled (10 static routes) + tsc --noEmit exit 0; only pre-existing layout.tsx font warning remains.
 - **Next:** Wire scheduled runs into the Runs view (show botId/schedule provenance + next-fire estimate), then Phase 4 auth to replace the fixed 'local' operator id.
+
+## 2026-08-25 Build 8 — Phase 3 — Runs view schedule + next-fire provenance
+- **Phase:** Phase 3 — Runs view schedule + next-fire provenance
+- **Delivered:** Added nextFire() to lib/cron.ts (bounded minute-scan next-fire estimator for 5-field cron). Runs view now loads bots alongside runs and surfaces per-run bot name + schedule provenance, plus a 'Next scheduled' footer listing each scheduled bot's next-fire estimate.
+- **Files:** apps/web/src/lib/cron.ts, apps/web/src/components/runs.tsx
+- **Verified:** builder_gate verify GREEN (npm run build compiled 12 routes/10 static pages, tsc --noEmit clean; only pre-existing layout.tsx font warning). Real cron.ts nextFire/cronMatches exercised via node --experimental-strip-types: */1, */15, specific-minute, malformed, and out-of-range cases all passed.
+- **Next:** Phase 4: replace the fixed 'local' operator id with real auth (GitHub OAuth / session), then encryption hardening + deploy docs.
