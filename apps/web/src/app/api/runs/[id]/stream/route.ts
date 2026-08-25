@@ -1,4 +1,6 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { authRequired, resolveUserId } from "@/lib/auth";
+import { getRun } from "@/lib/runs";
 import { subscribeRun } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
@@ -7,16 +9,34 @@ export const runtime = "nodejs";
 /**
  * SSE live feed for a bot run.
  *
- * Subscribes to the run's Redis pub/sub channel (written by Inngest/Modal) and
- * relays each event to the browser as a Server-Sent Event. When Redis isn't
- * configured locally, we send a single ready sentinel and close so the client
- * doesn't hang.
+ * Access is owner-namespaced. When GitHub auth is configured the signed session
+ * must own the run (same check as `/api/runs/[id]`); local single-operator mode
+ * keeps the Phase 1–3 behaviour. The stream subscribes to the run's Redis
+ * pub/sub channel (written by Inngest/Modal) and relays each event as SSE.
  */
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id: runId } = await params;
+
+  const resolved = resolveUserId(req, req.nextUrl.searchParams.get("userId")?.trim());
+  if (!resolved.ok) {
+    return new NextResponse(JSON.stringify({ ok: false, error: resolved.error }), {
+      status: resolved.status,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  if (authRequired()) {
+    const run = await getRun(resolved.userId, runId);
+    if (!run) {
+      return new NextResponse(JSON.stringify({ ok: false, error: "Run not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -40,7 +60,7 @@ export async function GET(
         controller.enqueue(encoder.encode(`: ping\n\n`));
       }, 15000);
 
-      _req.signal.addEventListener("abort", () => {
+      req.signal.addEventListener("abort", () => {
         clearInterval(keepalive);
         unsubscribe.then((unsub) => unsub()).catch(() => {});
         controller.close();

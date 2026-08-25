@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveUserId } from "@/lib/auth";
 import { inngest, QuorumEvents, type BotRunRequestedData } from "@/inngest/client";
 import { llmKeyRefFor } from "@/lib/redis";
 import { createRun, listRuns } from "@/lib/runs";
@@ -12,7 +13,8 @@ type Body = {
   /** Optional: acting seats. Defaults to the canonical v2 SEATS. */
   seats?: Seat[];
   chairId?: string;
-  userId: string;
+  /** Local-mode fallback only; ignored when a session is present. */
+  userId?: string;
   llm: { provider: string; baseUrl: string; model: string };
 };
 
@@ -23,11 +25,11 @@ type Body = {
  * POST /api/runs               → assign a task to a bot (queues a run)
  */
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("userId")?.trim();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, req.nextUrl.searchParams.get("userId")?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
-  const runs = await listRuns(userId);
+  const runs = await listRuns(resolved.userId);
   return NextResponse.json({ ok: true, runs });
 }
 
@@ -35,8 +37,9 @@ export async function GET(req: NextRequest) {
  * Assign a task to a bot → `inngest.send()`.
  *
  * This is the entrypoint of the core flow (ARCHITECTURE.md §"Core flow"). The
- * user's encrypted LLM key is referenced by its Redis key; Inngest fetches +
- * decrypts it inside the durable function and forwards it to Modal.
+ * owner is sourced from the signed session (Phase 4); the body `userId` is only
+ * a local-mode fallback. The user's encrypted LLM key is referenced by its Redis
+ * key; Inngest fetches + decrypts it inside the durable function.
  */
 export async function POST(req: NextRequest) {
   let body: Body;
@@ -46,12 +49,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  if (!body.task?.trim() || !body.botId || !body.userId) {
+  if (!body.task?.trim() || !body.botId) {
     return NextResponse.json(
-      { ok: false, error: "botId, userId, and task are required" },
+      { ok: false, error: "botId and task are required" },
       { status: 400 },
     );
   }
+
+  const resolved = resolveUserId(req, body.userId?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
+  }
+  const userId = resolved.userId;
 
   const runId = `run_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const data: BotRunRequestedData = {
@@ -60,8 +69,8 @@ export async function POST(req: NextRequest) {
     task: body.task,
     seats: body.seats ?? [],
     chairId: body.chairId ?? "",
-    llmKeyRef: llmKeyRefFor(body.userId),
-    ownerId: body.userId,
+    llmKeyRef: llmKeyRefFor(userId),
+    ownerId: userId,
     llm: body.llm,
   };
 
@@ -77,7 +86,7 @@ export async function POST(req: NextRequest) {
       positions: [],
       verdict: "",
       dissent: "",
-      ownerId: body.userId,
+      ownerId: userId,
       createdAt: Date.now(),
     };
     await createRun(run);

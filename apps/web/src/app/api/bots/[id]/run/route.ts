@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveUserId } from "@/lib/auth";
 import { getBot } from "@/lib/bots";
 import { queueBotRun } from "@/lib/queue";
 
@@ -17,8 +18,9 @@ type Body = {
  * This is the canonical "Core flow" entrypoint (ARCHITECTURE.md §"Core flow").
  * It loads the persisted bot, then delegates to `queueBotRun`, which resolves
  * acting seats, looks up the owner's non-secret provider metadata, and queues a
- * durable run. The encrypted LLM key is referenced only by its Redis key —
- * decryption happens inside the Inngest function and is forwarded to Modal.
+ * durable run. The owner is sourced from the signed session (Phase 4); the body
+ * `userId` is only a local-mode fallback. The encrypted LLM key is referenced
+ * only by its Redis key — decryption happens inside the Inngest function.
  */
 export async function POST(req: NextRequest, { params }: Params) {
   const { id } = await params;
@@ -30,14 +32,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
   const task = typeof body.task === "string" ? body.task.trim() : "";
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
-  }
   if (!task) {
     return NextResponse.json({ ok: false, error: "task is required" }, { status: 400 });
   }
+
+  const resolved = resolveUserId(req, body.userId?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
+  }
+  const userId = resolved.userId;
 
   const bot = await getBot(userId, id);
   if (!bot) {

@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveUserId } from "@/lib/auth";
 import { storeLlmConfig } from "@/lib/llm-key-store";
 import type { LlmProvider } from "@quorum/shared";
 
 export const runtime = "nodejs";
 
 type Body = {
-  userId: string;
+  /** Local-mode fallback only; ignored when a session is present. */
+  userId?: string;
   apiKey: string;
   provider: LlmProvider;
   baseUrl: string;
@@ -19,9 +21,8 @@ type Body = {
  * in Redis. The plain value never touches the database. Non-secret provider
  * metadata (provider/baseUrl/model) is stored alongside for retrieval.
  *
- * In Phase 4 a real auth session provides `userId`; for now the UI sends a
- * stable local id. Without auth the operator simply shouldn't expose this
- * route publicly.
+ * The owner is sourced from the signed session (Phase 4); the body `userId` is
+ * only a single-operator local-mode fallback when GitHub auth is unset.
  */
 export async function POST(req: NextRequest) {
   let body: Body;
@@ -34,12 +35,14 @@ export async function POST(req: NextRequest) {
   if (!body.apiKey?.trim()) {
     return NextResponse.json({ ok: false, error: "API key required" }, { status: 400 });
   }
-  if (!body.userId?.trim()) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+
+  const resolved = resolveUserId(req, body.userId?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
 
   try {
-    await storeLlmConfig(body.userId, body.apiKey.trim(), {
+    await storeLlmConfig(resolved.userId, body.apiKey.trim(), {
       provider: body.provider,
       baseUrl: body.baseUrl,
       model: body.model,

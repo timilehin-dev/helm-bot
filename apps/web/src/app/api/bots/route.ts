@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveUserId } from "@/lib/auth";
 import { createBot, listBots, parseBotDraft } from "@/lib/bots";
 
 export const runtime = "nodejs";
@@ -9,17 +10,17 @@ export const runtime = "nodejs";
  * GET  /api/bots?userId=...   → the user's bots
  * POST /api/bots               → create a bot
  *
- * The user id identifies the operator for BYOK resolution; it will be sourced
- * from auth (Phase 4) rather than a query/body field. Bots are stored in Redis
- * behind the `@/lib/bots` domain module.
+ * The owner id is sourced from the signed session (Phase 4). The query/body
+ * `userId` is accepted only as a fallback for single-operator local mode when
+ * GitHub auth is unset. Bots are stored in Redis behind `@/lib/bots`.
  */
 
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get("userId")?.trim();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, req.nextUrl.searchParams.get("userId")?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
-  const bots = await listBots(userId);
+  const bots = await listBots(resolved.userId);
   return NextResponse.json({ ok: true, bots });
 }
 
@@ -34,10 +35,11 @@ export async function POST(req: NextRequest) {
   const { userId, ...rest } = (body ?? {}) as Record<string, unknown> & {
     userId?: string;
   };
-  const ownerId = typeof userId === "string" ? userId.trim() : "";
-  if (!ownerId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, typeof userId === "string" ? userId.trim() : undefined);
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
+  const ownerId = resolved.userId;
 
   const parsed = parseBotDraft(rest, ownerId);
   if (!parsed.ok) {

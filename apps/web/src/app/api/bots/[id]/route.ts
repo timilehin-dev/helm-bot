@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveUserId } from "@/lib/auth";
 import { getBot, parseBotDraft, removeBot, updateBot } from "@/lib/bots";
 
 export const runtime = "nodejs";
@@ -10,14 +11,14 @@ type Body = {
   [k: string]: unknown;
 };
 
-/** GET a single bot by id (namespaced by userId). */
+/** GET a single bot by id (namespaced by the session owner). */
 export async function GET(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const userId = req.nextUrl.searchParams.get("userId")?.trim();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, req.nextUrl.searchParams.get("userId")?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
-  const bot = await getBot(userId, id);
+  const bot = await getBot(resolved.userId, id);
   if (!bot) {
     return NextResponse.json({ ok: false, error: "Bot not found" }, { status: 404 });
   }
@@ -34,10 +35,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ ok: false, error: "Invalid JSON" }, { status: 400 });
   }
 
-  const userId = typeof body.userId === "string" ? body.userId.trim() : "";
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, body.userId?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
+  const userId = resolved.userId;
 
   const rest: Record<string, unknown> = { ...body };
   delete rest.userId;
@@ -56,11 +58,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 /** DELETE a bot. */
 export async function DELETE(req: NextRequest, { params }: Params) {
   const { id } = await params;
-  const userId = req.nextUrl.searchParams.get("userId")?.trim();
-  if (!userId) {
-    return NextResponse.json({ ok: false, error: "userId required" }, { status: 400 });
+  const resolved = resolveUserId(req, req.nextUrl.searchParams.get("userId")?.trim());
+  if (!resolved.ok) {
+    return NextResponse.json({ ok: false, error: resolved.error }, { status: resolved.status });
   }
-  const removed = await removeBot(userId, id);
+  const removed = await removeBot(resolved.userId, id);
   if (!removed) {
     return NextResponse.json({ ok: false, error: "Bot not found" }, { status: 404 });
   }
