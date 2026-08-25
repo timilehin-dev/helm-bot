@@ -106,3 +106,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/inngest/functions.ts, apps/web/src/lib/cron.ts, apps/web/src/lib/queue.ts, apps/web/src/lib/bots.ts, apps/web/src/lib/redis.ts, apps/web/src/app/api/bots/[id]/run/route.ts, packages/shared/src/index.ts
 - **Verified:** npm run build (Next.js 15.5.23 prod build green), npm run typecheck (tsc --noEmit green), npm run lint (only pre-existing font warning), cron matcher unit assertions all passed
 - **Next:** Phase 3 remaining: wire schedule/task into the bot create/edit UI form + surface scheduled runs on runs page; then multi-bot council acting-seat loop on Modal agent
+
+## 2026-08-25 Build 7 — Phase 3 — bots UI (registry + schedule/task wiring)
+- **Phase:** Phase 3 — bots UI (registry + schedule/task wiring)
+- **Delivered:** Bots management view (create/edit/delete/run) wired into app nav; schedule (5-field cron) + standing task fields in the create/edit form with client validation; client-safe seat resolution via canonical shared SEATS; parseBotDraft now always carries schedule/task so PATCH can clear them (cron re-index via putBot verified).
+- **Files:** apps/web/src/components/bots.tsx (new), apps/web/src/lib/seats.ts (new), apps/web/src/components/app-shell.tsx, apps/web/src/lib/types.ts, apps/web/src/lib/bots.ts
+- **Verified:** builder_gate verify GREEN: next build compiled (10 static routes) + tsc --noEmit exit 0; only pre-existing layout.tsx font warning remains.
+- **Next:** Wire scheduled runs into the Runs view (show botId/schedule provenance + next-fire estimate), then Phase 4 auth to replace the fixed 'local' operator id.
