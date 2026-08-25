@@ -2,6 +2,7 @@
 
 import { QuorumProvider, useQuorum } from "@/lib/store";
 import type { View } from "@/lib/types";
+import { Bots } from "./bots";
 import { Chamber } from "./chamber";
 import { Dock } from "./dock";
 import { Ledger } from "./ledger";
@@ -11,6 +12,7 @@ import { Settings } from "./settings";
 
 const nav: Array<{ id: View; label: string }> = [
   { id: "chamber", label: "Chamber" },
+  { id: "bots", label: "Bots" },
   { id: "runs", label: "Runs" },
   { id: "ledger", label: "Ledger" },
   { id: "dock", label: "Dock" },
@@ -121,13 +123,14 @@ function ShellInner() {
 
         <main className="min-h-0 flex-1 overflow-y-auto">
           {view === "chamber" && <Chamber />}
+          {view === "bots" && <Bots />}
           {view === "runs" && <Runs />}
           {view === "ledger" && <Ledger />}
           {view === "dock" && <Dock />}
           {view === "settings" && <Settings />}
         </main>
 
-        <nav className="grid grid-cols-5 border-t border-border lg:hidden">
+        <nav className="grid grid-cols-6 border-t border-border lg:hidden">
           {nav.map((item) => (
             <button
               key={item.id}

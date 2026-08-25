@@ -53,9 +53,9 @@ export function parseBotDraft(
     seatIds,
     chairId,
     ownerId,
+    schedule,
+    task,
   };
-  if (schedule) draft.schedule = schedule;
-  if (task) draft.task = task;
 
   return { ok: true, draft };
 }
