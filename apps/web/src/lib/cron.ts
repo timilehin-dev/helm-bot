@@ -108,3 +108,42 @@ export function cronMatches(expr: string, at: Date): boolean {
     matchField(c.dayOfWeek, "dayOfWeek", at.getDay())
   );
 }
+
+/**
+ * The next wall-clock time a 5-field cron expression fires, strictly after
+ * `after`. Null when the expression is malformed or never matches within the
+ * bounded search window (12 years). Used by the UI to show the "next fire"
+ * estimate for a scheduled bot.
+ *
+ * Bounded linear scan: advance minute-by-minute from `after + 1m`, testing each
+ * candidate with `cronMatches` until one passes or the window is exhausted.
+ * `cronMatches` is cheap; at worst this walks ~6.3M minutes before bailing,
+ * which is trivially fast for a single call.
+ */
+export function nextFire(expr: string, after: Date): Date | null {
+  const c = parseCron(expr);
+  if (!c) return null;
+
+  const HARD_CAP_MS = 12 * 365 * 24 * 60 * 60 * 1000; // 12 years
+  const deadline = after.getTime() + HARD_CAP_MS;
+  // Start on the next whole minute so the estimate is stable (doesn't jump
+  // with the current second) and is always strictly after `after`.
+  const cursor = new Date(after);
+  cursor.setSeconds(0, 0);
+  cursor.setMinutes(cursor.getMinutes() + 1);
+
+  while (cursor.getTime() <= deadline) {
+    if (
+      matchField(c.minute, "minute", cursor.getMinutes()) &&
+      matchField(c.hour, "hour", cursor.getHours()) &&
+      matchField(c.dayOfMonth, "dayOfMonth", cursor.getDate()) &&
+      matchField(c.month, "month", cursor.getMonth() + 1) &&
+      matchField(c.dayOfWeek, "dayOfWeek", cursor.getDay())
+    ) {
+      return new Date(cursor.getTime());
+    }
+    cursor.setMinutes(cursor.getMinutes() + 1);
+  }
+
+  return null;
+}

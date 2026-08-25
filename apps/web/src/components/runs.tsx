@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { nextFire } from "@/lib/cron";
 import { OPERATOR_ID } from "@/lib/operator";
-import type { AgentStep, BotRun, RunPosition, RunStatus } from "@quorum/shared";
+import type { AgentStep, Bot, BotRun, RunPosition, RunStatus } from "@quorum/shared";
 
 const POLL_MS = 4000;
 
@@ -33,6 +34,11 @@ function formatWhen(ts?: number) {
   if (min < 60) return `${min}m ago`;
   const hrs = Math.round(min / 60);
   if (hrs < 24) return `${hrs}h ago`;
+  return new Date(ts).toLocaleString();
+}
+
+function formatNextFire(ts?: number) {
+  if (!ts) return "—";
   return new Date(ts).toLocaleString();
 }
 
@@ -128,9 +134,14 @@ function RunDetail({ run }: { run: BotRun }) {
  * few seconds so queued/running runs reflect their latest durable state without
  * requiring an SSE subscription. Selecting a run expands its full detail
  * (verdict, dissent, steps, positions).
+ *
+ * Bots are loaded alongside runs so each run can surface the name + schedule of
+ * the bot that produced it, and so the footer can show the next-fire estimate
+ * for every scheduled bot.
  */
 export function Runs() {
   const [runs, setRuns] = useState<BotRun[] | null>(null);
+  const [bots, setBots] = useState<Bot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -139,13 +150,22 @@ export function Runs() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/runs?userId=${encodeURIComponent(OPERATOR_ID)}`, {
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`Failed to load runs (${res.status})`);
-      const data = (await res.json()) as { ok: boolean; runs: BotRun[] };
+      const [runsRes, botsRes] = await Promise.all([
+        fetch(`/api/runs?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/bots?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+          cache: "no-store",
+        }),
+      ]);
+      if (!runsRes.ok) throw new Error(`Failed to load runs (${runsRes.status})`);
+      const runsData = (await runsRes.json()) as { ok: boolean; runs: BotRun[] };
+      const botsData = botsRes.ok
+        ? ((await botsRes.json()) as { ok: boolean; bots: Bot[] })
+        : { bots: null };
       if (mounted.current) {
-        setRuns(data.runs ?? []);
+        setRuns(runsData.runs ?? []);
+        setBots(botsData.bots ?? []);
         setError(null);
       }
     } catch (err) {
@@ -168,6 +188,13 @@ export function Runs() {
   }, [load]);
 
   const active = runs?.find((r) => r.id === selected) ?? null;
+  const activeBot = active ? bots?.find((b) => b.id === active.botId) ?? null : null;
+  const nextFires = new Map<string, number>();
+  for (const b of bots ?? []) {
+    if (!b.schedule) continue;
+    const at = nextFire(b.schedule, new Date())?.getTime();
+    if (at) nextFires.set(b.id, at);
+  }
 
   return (
     <div className="flex h-full min-h-0 flex-col lg:flex-row">
@@ -209,6 +236,26 @@ export function Runs() {
             </li>
           ))}
         </ul>
+        {bots !== null && nextFires.size > 0 && (
+          <div className="border-t border-border px-4 py-3">
+            <p className="font-mono text-[10px] tracking-[0.14em] text-subtle uppercase">
+              Next scheduled
+            </p>
+            <ul className="mt-2 space-y-1.5">
+              {bots
+                .filter((b) => nextFires.has(b.id))
+                .sort((a, b) => nextFires.get(a.id)! - nextFires.get(b.id)!)
+                .map((b) => (
+                  <li key={b.id} className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate text-muted">{b.name}</span>
+                    <span className="shrink-0 font-mono text-[10px] text-subtle">
+                      {formatNextFire(nextFires.get(b.id))}
+                    </span>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        )}
       </aside>
       <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
         {active ? (
@@ -217,7 +264,8 @@ export function Runs() {
               <div className="min-w-0">
                 <h2 className="font-display text-lg leading-snug tracking-tight">{active.task}</h2>
                 <p className="mt-1 font-mono text-[11px] text-subtle">
-                  {active.id} · {active.botId}
+                  {active.id}
+                  {activeBot ? ` · ${activeBot.name}` : ` · ${active.botId}`}
                 </p>
               </div>
               <Badge status={active.status} />
@@ -225,6 +273,9 @@ export function Runs() {
             <div className="mt-2 flex flex-wrap gap-4 font-mono text-[11px] text-muted">
               <span>Created {formatWhen(active.createdAt)}</span>
               {active.sealedAt && <span>Sealed {formatWhen(active.sealedAt)}</span>}
+              {activeBot?.schedule && (
+                <span>Schedule {activeBot.schedule}</span>
+              )}
               <span>{active.seatIds.length} seats</span>
             </div>
             <RunDetail run={active} />
