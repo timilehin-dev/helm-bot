@@ -127,3 +127,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/lib/auth.ts, apps/web/src/lib/operator.ts, apps/web/src/app/api/{bots,bots/[id],bots/[id]/run,runs,runs/[id],runs/[id]/stream,llm-key,auth/*}/route.ts, .env.example
 - **Verified:** python3 /tmp/builder_gate.py verify -> ok:true (npm run build + typecheck both exit 0). Fixed STATE_COOKIE import + stream ownership check. Builder gate risky-path check fixed (false positive on .env.example).
 - **Next:** Wire auth UI (sign-in/out button) and add tests for auth.ts session round-trip + resolveUserId precedence; then Phase 4 hardening docs.
+
+## 2026-08-26 Build 10 — Phase 4 — Auth UI (session userId wiring)
+- **Phase:** Phase 4 — Auth UI (session userId wiring)
+- **Delivered:** Client auth context (AuthProvider + useAuth) reading /api/auth/me; SignInGate blocking the app when GitHub auth is required; AuthButton (Sign in / user label / Sign out); Bots & Runs components now namespace all fetches and mutations under the signed-in userId instead of the fixed local operator id.
+- **Files:** apps/web/src/lib/auth-context.tsx, apps/web/src/components/auth.tsx, apps/web/src/components/app-shell.tsx, apps/web/src/components/bots.tsx, apps/web/src/components/runs.tsx
+- **Verified:** npm run build (green, 14/14 static pages, auth/me + login + logout + callback routes built) and npm run typecheck (green) via builder gate verify
+- **Next:** Thread session-scoped userId through the remaining server mutations (runs run action, chat), then Phase 4 deploy docs + encryption hardening.
