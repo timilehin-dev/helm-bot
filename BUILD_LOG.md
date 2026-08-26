@@ -134,3 +134,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/lib/auth-context.tsx, apps/web/src/components/auth.tsx, apps/web/src/components/app-shell.tsx, apps/web/src/components/bots.tsx, apps/web/src/components/runs.tsx
 - **Verified:** npm run build (green, 14/14 static pages, auth/me + login + logout + callback routes built) and npm run typecheck (green) via builder gate verify
 - **Next:** Thread session-scoped userId through the remaining server mutations (runs run action, chat), then Phase 4 deploy docs + encryption hardening.
+
+## 2026-08-26 Build 11 — Phase 4 — Auth (BYOK store) threading
+- **Phase:** Phase 4 — Auth (BYOK store) threading
+- **Delivered:** Session-scoped POST /api/chat: resolves owner via resolveUserId (no longer trusts an anonymous body), prefers the server-side encrypted BYOK key + non-secret provider metadata (getDecryptedKey/getProviderMeta), renders 'No LLM key stored for this user' instead of leaking a client key, and falls back to the legacy Phase-1 body key/config only for single-operator local mode before a key is persisted. Completes threading of session userId into the final remaining server mutation (runs POST was already scoped).
+- **Files:** apps/web/src/app/api/chat/route.ts
+- **Verified:** builder gate verify GREEN: npm run build exit 0 (Next 15.5.23, 14 static pages, /api/chat + all routes compile) + npm run typecheck (tsc --noEmit) exit 0; only pre-existing layout.tsx custom-font warning. Installed deps first (next/tsc missing). Post-review diff clean: no secrets/node_modules/risky paths.
+- **Next:** Migrate the Settings UI (client convene.ts/chat caller) to persist the LLM key via POST /api/llm-key and stop sending the raw Phase-1 localStorage apiKey body, then Phase 4 deploy docs + encryption hardening notes.
