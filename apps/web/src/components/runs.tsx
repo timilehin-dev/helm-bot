@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { nextFire } from "@/lib/cron";
+import { useAuth } from "@/lib/auth-context";
 import { OPERATOR_ID } from "@/lib/operator";
 import type { AgentStep, Bot, BotRun, RunPosition, RunStatus } from "@quorum/shared";
 
@@ -140,6 +141,7 @@ function RunDetail({ run }: { run: BotRun }) {
  * for every scheduled bot.
  */
 export function Runs() {
+  const { userId } = useAuth();
   const [runs, setRuns] = useState<BotRun[] | null>(null);
   const [bots, setBots] = useState<Bot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,13 +150,14 @@ export function Runs() {
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
+    const owner = userId ?? OPERATOR_ID;
     setLoading(true);
     try {
       const [runsRes, botsRes] = await Promise.all([
-        fetch(`/api/runs?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+        fetch(`/api/runs?userId=${encodeURIComponent(owner)}`, {
           cache: "no-store",
         }),
-        fetch(`/api/bots?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+        fetch(`/api/bots?userId=${encodeURIComponent(owner)}`, {
           cache: "no-store",
         }),
       ]);
@@ -175,7 +178,7 @@ export function Runs() {
     } finally {
       if (mounted.current) setLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     mounted.current = true;

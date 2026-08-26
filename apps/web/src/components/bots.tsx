@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SEATS, type Bot, type Seat } from "@quorum/shared";
+import { useAuth } from "@/lib/auth-context";
 import { OPERATOR_ID } from "@/lib/operator";
 import { resolveSeats } from "@/lib/seats";
 
@@ -59,6 +60,7 @@ interface BotFormProps {
 }
 
 function BotForm({ initial, onCancel, onSaved, onError }: BotFormProps) {
+  const { userId } = useAuth();
   const [name, setName] = useState(initial?.name ?? "");
   const [seatIds, setSeatIds] = useState<string[]>(
     initial?.seatIds ?? [SEATS[0].id, SEATS[1].id, SEATS[3].id],
@@ -91,7 +93,7 @@ function BotForm({ initial, onCancel, onSaved, onError }: BotFormProps) {
     setSaving(true);
     try {
       const payload = {
-        userId: OPERATOR_ID,
+        userId: userId ?? OPERATOR_ID,
         name: name.trim(),
         seatIds,
         chairId,
@@ -253,6 +255,7 @@ function BotCard({ bot, onEdit }: { bot: Bot; onEdit: () => void }) {
 }
 
 export function Bots() {
+  const { userId } = useAuth();
   const [bots, setBots] = useState<Bot[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -262,8 +265,9 @@ export function Bots() {
   const mounted = useRef(true);
 
   const load = useCallback(async () => {
+    const owner = userId ?? OPERATOR_ID;
     try {
-      const res = await fetch(`/api/bots?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+      const res = await fetch(`/api/bots?userId=${encodeURIComponent(owner)}`, {
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`Failed to load bots (${res.status})`);
@@ -277,7 +281,7 @@ export function Bots() {
         setError(err instanceof Error ? err.message : "Failed to load bots");
       }
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     mounted.current = true;
@@ -300,7 +304,7 @@ export function Bots() {
       const res = await fetch(`/api/bots/${id}/run`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: OPERATOR_ID, task }),
+        body: JSON.stringify({ userId: userId ?? OPERATOR_ID, task }),
       });
       const data = (await res.json()) as { ok: boolean; runId?: string; error?: string };
       if (!res.ok || !data.ok) {
@@ -317,7 +321,8 @@ export function Bots() {
   async function removeBot(id: string) {
     if (!window.confirm("Delete this bot? Past runs are kept.")) return;
     try {
-      const res = await fetch(`/api/bots/${id}?userId=${encodeURIComponent(OPERATOR_ID)}`, {
+      const owner = userId ?? OPERATOR_ID;
+      const res = await fetch(`/api/bots/${id}?userId=${encodeURIComponent(owner)}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);

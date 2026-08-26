@@ -1,7 +1,9 @@
 "use client";
 
 import { QuorumProvider, useQuorum } from "@/lib/store";
+import { AuthProvider } from "@/lib/auth-context";
 import type { View } from "@/lib/types";
+import { AuthButton, SignInGate } from "./auth";
 import { Bots } from "./bots";
 import { Chamber } from "./chamber";
 import { Dock } from "./dock";
@@ -62,6 +64,7 @@ function ShellInner() {
   return (
     <div className="flex min-h-dvh bg-bg text-fg">
       {!seenOnboarding && <Onboarding />}
+      <SignInGate />
 
       <aside className="hidden w-56 shrink-0 flex-col border-r border-border lg:flex">
         <div className="px-4 py-4">
@@ -111,6 +114,9 @@ function ShellInner() {
               ? `${provider.provider} · ${provider.model}`
               : "No API key"}
           </p>
+          <div className="mt-2">
+            <AuthButton />
+          </div>
         </div>
       </aside>
 
@@ -119,6 +125,9 @@ function ShellInner() {
           <button type="button" onClick={() => setView("chamber")}>
             <Wordmark />
           </button>
+          <div className="ml-auto">
+            <AuthButton />
+          </div>
         </header>
 
         <main className="min-h-0 flex-1 overflow-y-auto">
@@ -151,8 +160,10 @@ function ShellInner() {
 
 export function AppShell() {
   return (
-    <QuorumProvider>
-      <ShellInner />
-    </QuorumProvider>
+    <AuthProvider>
+      <QuorumProvider>
+        <ShellInner />
+      </QuorumProvider>
+    </AuthProvider>
   );
 }
