@@ -148,3 +148,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/app/api/llm-key/route.ts, apps/web/src/lib/llm-status.ts, apps/web/src/lib/store.tsx, apps/web/src/lib/redis.ts, apps/web/src/lib/convene.ts, apps/web/src/components/chamber.tsx, apps/web/src/components/settings.tsx
 - **Verified:** builder_gate verify GREEN: npm run build exit 0 (Next 15.5.23, 16 routes incl /api/llm-key GET+POST) + npm run typecheck (tsc --noEmit) exit 0; only pre-existing layout.tsx custom-font warning. Post-review diff clean: no secrets/node_modules/risky paths.
 - **Next:** Phase 4 hardening: add tests for auth.ts session round-trip + resolveOwner precedence, document ENCRYPTION_KEY/SESSION_SECRET/GITHUB_* deploy setup in docs/ARCHITECTURE.md or a DEPLOY guide, and note encryption key rotation considerations.
+
+## 2026-08-27 Build 13 — Phase 4 — Auth tests
+- **Phase:** Phase 4 — Auth tests
+- **Delivered:** Unit tests for lib/auth.ts (14 tests, 3 suites): session token round-trip, tamper rejection, wrong-secret rejection, expiry rejection, missing-field rejection, OAuth state nonce round-trip, and resolveOwner precedence (session > required refusal > hint > local operator). Wired into npm test via tsx.
+- **Files:** apps/web/src/lib/auth.test.ts, package.json, apps/web/package.json
+- **Verified:** builder_gate verify GREEN: npm run build exit 0 (Next 15.5.23, 16 routes) + npm run typecheck (tsc --noEmit) exit 0 + npm test (tsx --test) 14/14 pass. Tests exercise real auth.ts code paths (node:crypto HMAC), no mocks.
+- **Next:** Phase 4 hardening: document ENCRYPTION_KEY/SESSION_SECRET/GITHUB_* deploy setup (DEPLOY guide / ARCHITECTURE.md) and encryption key rotation considerations.
