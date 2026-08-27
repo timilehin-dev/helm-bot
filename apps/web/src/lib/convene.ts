@@ -7,6 +7,12 @@ export interface ConveneRequest {
   seatIds: string[];
   memories: string[];
   provider: ProviderConfig;
+  /**
+   * Owner id for server-side key resolution (Phase 4). When present, the chat
+   * route prefers the encrypted BYOK key stored in Redis; `provider.apiKey` is
+   * then only the legacy local-mode fallback and may be left empty.
+   */
+  userId?: string;
 }
 
 export interface ConveneOk {
@@ -26,6 +32,7 @@ export type ConveneResponse = ConveneOk | ConveneErr;
 
 async function chat(
   provider: ProviderConfig,
+  userId: string | undefined,
   system: string,
   user: string,
 ): Promise<string> {
@@ -33,6 +40,7 @@ async function chat(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      userId,
       provider: provider.provider,
       apiKey: provider.apiKey,
       baseUrl: provider.baseUrl,
@@ -63,6 +71,7 @@ function parseJsonBlock(raw: string): Record<string, unknown> | null {
 
 async function runSpecialist(
   provider: ProviderConfig,
+  userId: string | undefined,
   seat: ConveneRequest["seats"][number],
   question: string,
   memories: string[],
@@ -84,7 +93,7 @@ ${memories.length ? memories.map((m) => `- ${m}`).join("\n") : "(empty)"}
 
 Cast your independent position as JSON.`;
 
-  const raw = await chat(provider, system, user);
+  const raw = await chat(provider, userId, system, user);
   const parsed = parseJsonBlock(raw);
   if (parsed) {
     return {
@@ -104,6 +113,7 @@ Cast your independent position as JSON.`;
 
 async function runChair(
   provider: ProviderConfig,
+  userId: string | undefined,
   chair: ConveneRequest["seats"][number],
   question: string,
   positions: Position[],
@@ -135,7 +145,7 @@ ${lines}
 
 Seal the session as JSON.`;
 
-  const raw = await chat(provider, system, user);
+  const raw = await chat(provider, userId, system, user);
   const parsed = parseJsonBlock(raw);
   if (parsed) {
     const path = String(parsed.path ?? "/verdicts/session.md");
@@ -154,7 +164,7 @@ Seal the session as JSON.`;
 
 /** Client-side convene: specialists in parallel, then chair. */
 export async function convene(req: ConveneRequest): Promise<ConveneResponse> {
-  if (!req.provider.apiKey.trim()) {
+  if (!req.userId && !req.provider.apiKey.trim()) {
     return {
       ok: false,
       error: "Add a cloud API key in Settings. Quorum uses your keys — nothing is hosted for you.",
@@ -174,12 +184,13 @@ export async function convene(req: ConveneRequest): Promise<ConveneResponse> {
   try {
     const positions = await Promise.all(
       specialists.map((seat) =>
-        runSpecialist(req.provider, seat, req.question, req.memories),
+        runSpecialist(req.provider, req.userId, seat, req.question, req.memories),
       ),
     );
 
     const sealed = await runChair(
       req.provider,
+      req.userId,
       chair,
       req.question,
       positions,

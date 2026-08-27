@@ -1,6 +1,9 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQuorum } from "@/lib/store";
+import { useAuth } from "@/lib/auth-context";
+import { saveLlmKey } from "@/lib/llm-status";
 import type { ProviderConfig } from "@/lib/types";
 
 const PRESETS: Array<{
@@ -42,7 +45,55 @@ const PRESETS: Array<{
 ];
 
 export function Settings() {
-  const { provider, setProvider, resetDemo, seats } = useQuorum();
+  const {
+    provider,
+    setProvider,
+    keyConfigured,
+    keyStoreReady,
+    refreshKeyStatus,
+    setKeyStatus,
+    resetDemo,
+    seats,
+  } = useQuorum();
+  const { userId } = useAuth();
+
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Reconcile the server-side BYOK status whenever the owner resolves, so the
+  // UI reflects a previously stored key (e.g. after a reload).
+  useEffect(() => {
+    if (userId) void refreshKeyStatus(userId);
+  }, [userId, refreshKeyStatus]);
+
+  async function onSave() {
+    if (!userId) {
+      setSaveError("Sign in to store an API key.");
+      return;
+    }
+    if (!provider.apiKey.trim()) {
+      setSaveError("Enter an API key first.");
+      return;
+    }
+    setSaving(true);
+    setSaveError(null);
+    setSaved(false);
+    const res = await saveLlmKey(userId, {
+      apiKey: provider.apiKey,
+      provider: provider.provider,
+      baseUrl: provider.baseUrl,
+      model: provider.model,
+    });
+    setSaving(false);
+    if (!res.ok) {
+      setSaveError(res.error ?? "Failed to store key.");
+      return;
+    }
+    // A successful save proves the encrypted key landed server-side.
+    setKeyStatus(true, { provider: provider.provider, model: provider.model });
+    setSaved(true);
+  }
 
   return (
     <div className="mx-auto max-w-xl px-4 py-8 sm:px-8">
@@ -94,9 +145,35 @@ export function Settings() {
             className="mt-1.5 h-10 w-full rounded-md border border-border bg-surface px-3 font-mono text-sm outline-none focus:ring-1 focus:ring-ring"
           />
           <p className="mt-1.5 text-xs text-subtle">
-            Stored in this browser only (localStorage). Sent only to the
-            provider you choose, via this app&apos;s server route.
+            Encrypted at rest in Redis and sent only to the provider you choose,
+            via this app&apos;s server route. The plain key never leaves the
+            server.
           </p>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving || !provider.apiKey.trim()}
+              className="h-10 rounded-md bg-accent px-4 text-sm font-medium text-accent-fg disabled:opacity-40"
+            >
+              {saving ? "Saving…" : "Save key"}
+            </button>
+            {keyStoreReady && (
+              <span
+                className={`font-mono text-[11px] ${
+                  keyConfigured ? "text-ok" : "text-warn"
+                }`}
+              >
+                {keyConfigured
+                  ? "● Stored server-side"
+                  : "● Not stored (Redis unavailable)"}
+              </span>
+            )}
+            {saved && !saveError && (
+              <span className="text-xs text-ok">Saved.</span>
+            )}
+          </div>
+          {saveError && <p className="mt-2 text-xs text-danger">{saveError}</p>}
         </div>
 
         <div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { EXAMPLE_PROMPTS } from "@/lib/seed";
 import { IVO, uid, useQuorum } from "@/lib/store";
 import { convene } from "@/lib/convene";
+import { useAuth } from "@/lib/auth-context";
 import type { Session } from "@/lib/types";
 
 function formatWhen(ts: number) {
@@ -28,19 +29,24 @@ export function Chamber() {
     patchSession,
     memories,
     provider,
+    keyConfigured,
     convening,
     setConvening,
     setSeatStatus,
     upsertFile,
     setView,
   } = useQuorum();
+  const { userId } = useAuth();
 
   const [question, setQuestion] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const active = sessions.find((s) => s.id === activeSessionId) ?? sessions[0];
   const specialists = seats.filter((s) => !s.chair);
-  const keyReady = Boolean(provider.apiKey.trim());
+  // A server-side key (keyConfigured) or the legacy localStorage key makes the
+  // chamber usable. The presence of a userId alone does not — in local mode
+  // userId is always "local", so relying on it would never gate on a key.
+  const keyReady = keyConfigured || Boolean(provider.apiKey.trim());
 
   async function onConvene(e?: React.FormEvent) {
     e?.preventDefault();
@@ -82,7 +88,11 @@ export function Chamber() {
       chairId: IVO,
       seatIds: sittingIds,
       memories: memories.map((m) => m.text),
-      provider,
+      // When a key is stored server-side, never put the plain localStorage key
+      // on the wire — the chat route resolves it from Redis instead. The body
+      // apiKey remains only for the legacy local-mode fallback (no server key).
+      provider: keyConfigured ? { ...provider, apiKey: "" } : provider,
+      userId: userId ?? undefined,
     });
 
     seats.forEach((s) => setSeatStatus(s.id, "idle"));

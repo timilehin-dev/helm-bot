@@ -27,6 +27,15 @@ function client(): RedisClient | null {
   return _client;
 }
 
+/**
+ * True when a Redis backend is configured. The client uses this to decide
+ * whether the BYOK key lives server-side (encrypted in Redis) or whether the
+ * app is running in a no-Redis state where live features stay quiet.
+ */
+export function redisConfigured(): boolean {
+  return Boolean(REDIS_URL);
+}
+
 /** Channel name for a given run's live event stream. */
 export function runChannel(runId: string) {
   return `quorum:run:${runId}`;

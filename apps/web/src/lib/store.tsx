@@ -27,6 +27,7 @@ import {
   seedSeats,
   seedSessions,
 } from "./seed";
+import { getLlmStatus } from "./llm-status";
 
 export function uid(prefix = "id") {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
@@ -53,6 +54,13 @@ type State = {
   memories: MemoryItem[];
   files: DockFile[];
   provider: ProviderConfig;
+  /**
+   * Phase 4 BYOK: true when the owner has an encrypted key stored server-side
+   * (reads from GET /api/llm-key). Only meaningful when `keyStoreReady`.
+   */
+  keyConfigured: boolean;
+  /** True when Redis is available, so a server-side key could be stored. */
+  keyStoreReady: boolean;
 };
 
 const defaults: State = {
@@ -65,6 +73,8 @@ const defaults: State = {
   memories: seedMemories,
   files: seedFiles,
   provider: defaultProvider,
+  keyConfigured: false,
+  keyStoreReady: false,
 };
 
 type Store = State & {
@@ -84,6 +94,14 @@ type Store = State & {
   deleteFile: (id: string) => void;
   setProvider: (p: Partial<ProviderConfig>) => void;
   setSeatStatus: (id: string, status: Seat["status"]) => void;
+  /**
+   * Phase 4 BYOK: mark the owner's server-side key as stored (or not). A
+   * successful save implies Redis is configured, so this also flips
+   * `keyStoreReady` true and syncs `provider.model` from the stored metadata.
+   */
+  setKeyStatus: (stored: boolean, meta?: { provider: string; model: string } | null) => void;
+  /** Re-fetch the owner's BYOK status from GET /api/llm-key. */
+  refreshKeyStatus: (userId: string) => Promise<void>;
   resetDemo: () => void;
 };
 
@@ -223,6 +241,35 @@ export function QuorumProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setKeyStatus = useCallback(
+    (stored: boolean, meta?: { provider: string; model: string } | null) => {
+      setState((s) => ({
+        ...s,
+        keyStoreReady: true,
+        keyConfigured: stored,
+        provider: {
+          ...s.provider,
+          model: meta?.model ?? s.provider.model,
+        },
+      }));
+    },
+    [],
+  );
+
+  const refreshKeyStatus = useCallback(async (userId: string) => {
+    const status = await getLlmStatus(userId);
+    if (!status) return;
+    setState((s) => ({
+      ...s,
+      keyStoreReady: status.configured,
+      keyConfigured: status.stored,
+      provider: {
+        ...s.provider,
+        model: status.meta?.model ?? s.provider.model,
+      },
+    }));
+  }, []);
+
   const resetDemo = useCallback(() => {
     setState({ ...defaults, seenOnboarding: true });
   }, []);
@@ -246,6 +293,8 @@ export function QuorumProvider({ children }: { children: ReactNode }) {
       deleteFile,
       setProvider,
       setSeatStatus,
+      setKeyStatus,
+      refreshKeyStatus,
       resetDemo,
     }),
     [
@@ -265,6 +314,8 @@ export function QuorumProvider({ children }: { children: ReactNode }) {
       deleteFile,
       setProvider,
       setSeatStatus,
+      setKeyStatus,
+      refreshKeyStatus,
       resetDemo,
     ],
   );
