@@ -37,6 +37,22 @@ seats are *acting workers* (Developer, Researcher, Ops, Adversary), not just opi
   **directly** to the provider (OpenAI / Anthropic / xAI / OpenRouter). Operator pays $0 for tokens.
 - Infra (Modal / Tavily / Upstash / Inngest / Vercel) all free-tier-able for a self-hosted instance.
 
+## Deployment & secrets
+
+Full step-by-step deployment (Vercel + Inngest + Modal + Upstash + Tavily on
+free tiers), the complete env-var reference, and **encryption key rotation**
+guidance live in **[`DEPLOY.md`](./DEPLOY.md)**. Key facts:
+
+- `ENCRYPTION_KEY` is the per-deployment AES-256-GCM key that encrypts user LLM
+  keys at rest in Redis. **Rotating it invalidates all stored user keys** (GCM
+  auth fails) — users must re-enter their key. There is no bulk re-encryption.
+- `SESSION_SECRET` is an HMAC-SHA256 key that *signs* (never encrypts) session
+  + OAuth-state cookies. It contains no secret material; rotate only on
+  compromise — it invalidates active sessions.
+- GitHub auth is optional: set `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` +
+  `SESSION_SECRET` for multi-user mode, or leave unset for single-operator local
+  mode.
+
 ## Build phases
 
 - **Phase 1**: Vercel UI scaffold + Inngest integration + Tavily search tool + BYOK LLM proxy

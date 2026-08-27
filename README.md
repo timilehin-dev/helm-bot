@@ -39,6 +39,13 @@ Open http://localhost:3000. Go to **Settings**, paste a cloud API key, return to
 | OpenRouter | `https://openrouter.ai/api/v1` | `openai/gpt-4o` |
 | Custom | your gateway | any chat model |
 
+## Deploy
+
+Self-hosting is the point: the only secret an end user provides is their own
+LLM API key. See **[`docs/DEPLOY.md`](docs/DEPLOY.md)** for the full
+Vercel + Inngest + Modal + Upstash + Tavily walkthrough (all free-tier-able),
+the env-var reference, and encryption-key rotation notes.
+
 ## Architecture
 
 - **Next.js 15** App Router + Tailwind v4
