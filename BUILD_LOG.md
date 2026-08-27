@@ -155,3 +155,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/lib/auth.test.ts, package.json, apps/web/package.json
 - **Verified:** builder_gate verify GREEN: npm run build exit 0 (Next 15.5.23, 16 routes) + npm run typecheck (tsc --noEmit) exit 0 + npm test (tsx --test) 14/14 pass. Tests exercise real auth.ts code paths (node:crypto HMAC), no mocks.
 - **Next:** Phase 4 hardening: document ENCRYPTION_KEY/SESSION_SECRET/GITHUB_* deploy setup (DEPLOY guide / ARCHITECTURE.md) and encryption key rotation considerations.
+
+## 2026-08-27 Build 14 — Phase 4 — deploy docs + encryption rotation
+- **Phase:** Phase 4 — deploy docs + encryption rotation
+- **Delivered:** docs/DEPLOY.md full self-host deploy guide (Vercel + Inngest + Modal + Upstash + Tavily on free tiers) covering all env vars (REDIS_URL/ENCRYPTION_KEY/INNGEST_*/TAVILY_API_KEY/MODAL_AGENT_URL/GITHUB_*), AES-256-GCM key-derivation details, ENCRYPTION_KEY rotation (invalidates stored user keys -> re-enter) vs SESSION_SECRET (sign-not-encrypt) guidance, verification checklist, and a free-tier map. Cross-linked from docs/ARCHITECTURE.md (Deployment & secrets section) and README.md (Deploy section).
+- **Files:** docs/DEPLOY.md (new), docs/ARCHITECTURE.md, README.md
+- **Verified:** builder_gate verify GREEN: npm run build exit 0 (Next 15.5.23, 16 routes/14 static pages) + npm run typecheck (tsc --noEmit) exit 0 + npm test (tsx --test) 14/14 pass. Only pre-existing layout.tsx custom-font warning. AES-GCM derivation facts cross-checked against apps/web/src/lib/llm-key-store.ts. Post-review diff clean: docs-only, no secrets/node_modules/risky paths.
+- **Next:** Phase 4 open-source polish: README contributor/architecture polish + CONTRIBUTING/SECURITY docs, or an end-to-end smoke checklist; then revisit Modal deploy command fidelity + wire Tavily into convene.ts if still pending.
