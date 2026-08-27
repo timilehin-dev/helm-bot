@@ -141,3 +141,10 @@ entry under "Build history" for details and the Phase 2 next steps.
 - **Files:** apps/web/src/app/api/chat/route.ts
 - **Verified:** builder gate verify GREEN: npm run build exit 0 (Next 15.5.23, 14 static pages, /api/chat + all routes compile) + npm run typecheck (tsc --noEmit) exit 0; only pre-existing layout.tsx custom-font warning. Installed deps first (next/tsc missing). Post-review diff clean: no secrets/node_modules/risky paths.
 - **Next:** Migrate the Settings UI (client convene.ts/chat caller) to persist the LLM key via POST /api/llm-key and stop sending the raw Phase-1 localStorage apiKey body, then Phase 4 deploy docs + encryption hardening notes.
+
+## 2026-08-27 Build 12 — Phase 4 — Auth/BYOK Settings persistence
+- **Phase:** Phase 4 — Auth/BYOK Settings persistence
+- **Delivered:** Settings UI now persists the BYOK LLM key server-side via POST /api/llm-key (encrypted in Redis) and stops sending the raw Phase-1 localStorage apiKey body once a key is stored. Added GET /api/llm-key status endpoint (configured/stored/meta), client llm-status.ts helpers (getLlmStatus/saveLlmKey), store keyConfigured/keyStoreReady/setKeyStatus/refreshKeyStatus, redis.redisConfigured(), and convene.ts userId threading so the chat route resolves the server-side key.
+- **Files:** apps/web/src/app/api/llm-key/route.ts, apps/web/src/lib/llm-status.ts, apps/web/src/lib/store.tsx, apps/web/src/lib/redis.ts, apps/web/src/lib/convene.ts, apps/web/src/components/chamber.tsx, apps/web/src/components/settings.tsx
+- **Verified:** builder_gate verify GREEN: npm run build exit 0 (Next 15.5.23, 16 routes incl /api/llm-key GET+POST) + npm run typecheck (tsc --noEmit) exit 0; only pre-existing layout.tsx custom-font warning. Post-review diff clean: no secrets/node_modules/risky paths.
+- **Next:** Phase 4 hardening: add tests for auth.ts session round-trip + resolveOwner precedence, document ENCRYPTION_KEY/SESSION_SECRET/GITHUB_* deploy setup in docs/ARCHITECTURE.md or a DEPLOY guide, and note encryption key rotation considerations.
